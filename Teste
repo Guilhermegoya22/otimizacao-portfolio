@@ -19,13 +19,18 @@ def get_data(tickers, start_date, end_date):
     return data['Adj Close']
 
 # Função para otimização de portfólio
-def optimize_portfolio(data, num_assets):
+def optimize_portfolio(data, num_assets, risk_free_rate=0.02):
     # Garantir que não haja valores ausentes
     data = data.dropna()
-
+    
     # Calcular retornos esperados e matriz de covariância
     mu = expected_returns.mean_historical_return(data)
     S = risk_models.sample_cov(data)
+    
+    # Verificar se pelo menos um ativo tem retorno esperado maior que a taxa livre de risco
+    if (mu > risk_free_rate).sum() == 0:
+        raise ValueError("Nenhum dos ativos tem retorno esperado superior à taxa livre de risco.")
+    
     ef = EfficientFrontier(mu, S)
     weights = ef.max_sharpe()
     cleaned_weights = ef.clean_weights()
@@ -56,21 +61,24 @@ def create_dashboard():
         tickers = [ticker for sublist in UNIVERSO_ATIVOS.values() for ticker in sublist]
         data = get_data(tickers, start_date, end_date)
         
-        # Otimizar portfólio
-        top_weights, performance = optimize_portfolio(data, num_assets)
-        
-        # Filtrar dados para os ativos selecionados
-        selected_tickers = list(top_weights.keys())
-        selected_data = data[selected_tickers]
-        
-        # Exibir resultados
-        st.write("Pesos Ótimos:", top_weights)
-        st.bar_chart(pd.DataFrame.from_dict(top_weights, orient='index', columns=['Peso']))
-        
-        # Exibir métricas de desempenho
-        st.write(f"Retorno Esperado: {performance[0]:.2%}")
-        st.write(f"Risco (Desvio Padrão): {performance[1]:.2%}")
-        st.write(f"Índice de Sharpe: {performance[2]:.2f}")
+        try:
+            # Otimizar portfólio
+            top_weights, performance = optimize_portfolio(data, num_assets)
+            
+            # Filtrar dados para os ativos selecionados
+            selected_tickers = list(top_weights.keys())
+            selected_data = data[selected_tickers]
+            
+            # Exibir resultados
+            st.write("Pesos Ótimos:", top_weights)
+            st.bar_chart(pd.DataFrame.from_dict(top_weights, orient='index', columns=['Peso']))
+            
+            # Exibir métricas de desempenho
+            st.write(f"Retorno Esperado: {performance[0]:.2%}")
+            st.write(f"Risco (Desvio Padrão): {performance[1]:.2%}")
+            st.write(f"Índice de Sharpe: {performance[2]:.2f}")
+        except ValueError as e:
+            st.error(f"Erro na otimização do portfólio: {e}")
 
 if _name_ == "_main_":
     create_dashboard()
