@@ -2,7 +2,6 @@ import yfinance as yf
 from pypfopt import EfficientFrontier, risk_models, expected_returns
 import streamlit as st
 import pandas as pd
-import numpy as np
 
 # Definir o universo de ativos
 UNIVERSO_ATIVOS = {
@@ -15,8 +14,12 @@ UNIVERSO_ATIVOS = {
 
 # Função para obter dados históricos
 def get_data(tickers, start_date, end_date):
-    data = yf.download(tickers, start=start_date, end=end_date)
-    return data['Adj Close']
+    try:
+        data = yf.download(tickers, start=start_date, end=end_date, progress=False)
+        return data['Adj Close']
+    except Exception as e:
+        st.error(f"Erro ao baixar os dados: {e}")
+        return None
 
 # Função para otimização de portfólio
 def optimize_portfolio(data, num_assets):
@@ -47,10 +50,18 @@ def create_dashboard():
     start_date = st.date_input("Data de início")
     end_date = st.date_input("Data de término")
     
+    if start_date >= end_date:
+        st.error("A data de início deve ser anterior à data de término.")
+        return
+    
     if st.button("Calcular"):
         # Obter dados históricos para todos os ativos no universo
         tickers = [ticker for sublist in UNIVERSO_ATIVOS.values() for ticker in sublist]
         data = get_data(tickers, start_date, end_date)
+        
+        if data is None or data.empty:
+            st.warning("Nenhum dado foi retornado. Verifique os tickers ou o período selecionado.")
+            return
         
         # Otimizar portfólio
         top_weights, performance = optimize_portfolio(data, num_assets)
